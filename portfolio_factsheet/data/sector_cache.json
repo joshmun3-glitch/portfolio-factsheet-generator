@@ -1,0 +1,107 @@
+{
+  "BABA": {
+    "value": "Consumer Cyclical",
+    "timestamp": "2026-01-14T04:56:56.771227",
+    "expiry_days": 30
+  },
+  "ROL": {
+    "value": "Consumer Cyclical",
+    "timestamp": "2026-01-14T04:56:58.581840",
+    "expiry_days": 30
+  },
+  "PM": {
+    "value": "Consumer Defensive",
+    "timestamp": "2026-01-14T04:56:59.735069",
+    "expiry_days": 30
+  },
+  "0700.HK": {
+    "value": "Communication Services",
+    "timestamp": "2026-01-14T04:57:01.581477",
+    "expiry_days": 30
+  },
+  "CFR.SW": {
+    "value": "Consumer Cyclical",
+    "timestamp": "2026-01-14T04:57:03.393023",
+    "expiry_days": 30
+  },
+  "RACE": {
+    "value": "Consumer Cyclical",
+    "timestamp": "2026-01-14T04:57:04.831615",
+    "expiry_days": 30
+  },
+  "RMS.PA": {
+    "value": "Consumer Cyclical",
+    "timestamp": "2026-01-14T04:57:06.773906",
+    "expiry_days": 30
+  },
+  "DASH": {
+    "value": "Consumer Cyclical",
+    "timestamp": "2026-01-14T04:57:08.208160",
+    "expiry_days": 30
+  },
+  "ABNB": {
+    "value": "Consumer Cyclical",
+    "timestamp": "2026-01-14T04:57:10.035276",
+    "expiry_days": 30
+  },
+  "HSY": {
+    "value": "Consumer Defensive",
+    "timestamp": "2026-01-14T04:57:11.278559",
+    "expiry_days": 30
+  },
+  "IDXX": {
+    "value": "Healthcare",
+    "timestamp": "2026-01-14T04:57:12.597318",
+    "expiry_days": 30
+  },
+  "HD": {
+    "value": "Consumer Cyclical",
+    "timestamp": "2026-01-14T04:57:13.843613",
+    "expiry_days": 30
+  },
+  "OTIS": {
+    "value": "Industrials",
+    "timestamp": "2026-01-14T04:57:15.178104",
+    "expiry_days": 30
+  },
+  "MNST": {
+    "value": "Consumer Defensive",
+    "timestamp": "2026-01-14T04:57:16.367747",
+    "expiry_days": 30
+  },
+  "AXP": {
+    "value": "Financial Services",
+    "timestamp": "2026-01-14T04:57:17.753036",
+    "expiry_days": 30
+  },
+  "DEO": {
+    "value": "Consumer Defensive",
+    "timestamp": "2026-01-14T04:57:19.967100",
+    "expiry_days": 30
+  },
+  "000858.SZ": {
+    "value": "Consumer Defensive",
+    "timestamp": "2026-01-14T04:57:21.035284",
+    "expiry_days": 30
+  },
+  "3690.HK": {
+    "value": "Consumer Cyclical",
+    "timestamp": "2026-01-14T04:57:22.118727",
+    "expiry_days": 30
+  },
+  "2801.JT": {
+    "value": "Consumer Defensive",
+    "timestamp": "2026-01-14T04:57:23.360430",
+    "expiry_days": 30
+  },
+  "UBER": {
+    "value": "Technology",
+    "timestamp": "2026-01-14T04:57:24.703514",
+    "expiry_days": 30
+  },
+  "V": {
+    "value": "Financial Services",
+    "timestamp": "2026-01-14T04:57:25.955118",
+    "expiry_days": 30
+  }
+}
