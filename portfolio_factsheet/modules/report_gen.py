@@ -82,11 +82,52 @@ class ReportGenerator:
             
             logger.info(f"Report generated: {report_path}")
             return report_path
-            
+
         except Exception as e:
             logger.error(f"Error generating report: {e}")
             return None
-    
+
+    def generate_pdf_from_html(self, html_path: str) -> Optional[str]:
+        """
+        Generate PDF report from HTML file using weasyprint.
+
+        Args:
+            html_path: Path to the HTML report file
+
+        Returns:
+            Path to generated PDF report or None if failed
+        """
+        try:
+            # Try importing weasyprint
+            try:
+                from weasyprint import HTML
+                logger.info("Using weasyprint for PDF generation")
+            except ImportError:
+                logger.warning("weasyprint not available, trying alternative method")
+                return self._generate_pdf_alternative(html_path)
+
+            # Generate PDF filename (same name as HTML but with .pdf extension)
+            pdf_filename = os.path.basename(html_path).replace('.html', '.pdf')
+            pdf_path = os.path.join(self.reports_dir, pdf_filename)
+
+            logger.info(f"Generating PDF from HTML: {html_path}")
+
+            # Convert HTML to PDF
+            HTML(filename=html_path).write_pdf(pdf_path)
+
+            logger.info(f"PDF report generated: {pdf_path}")
+            return pdf_path
+
+        except Exception as e:
+            logger.error(f"Error generating PDF: {e}")
+            # Try alternative method as fallback
+            try:
+                logger.info("Attempting alternative PDF generation method...")
+                return self._generate_pdf_alternative(html_path)
+            except Exception as alt_error:
+                logger.error(f"Alternative PDF generation also failed: {alt_error}")
+                return None
+
     def _prepare_template_data(self, portfolio_data: pd.DataFrame,
                               calculation_results: Dict[str, Any],
                               title: Optional[str] = None,

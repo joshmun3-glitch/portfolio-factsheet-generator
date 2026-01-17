@@ -280,26 +280,35 @@ class PortfolioFactsheetApp:
         
         # Get missing data summary
         missing_summary = self.portfolio_data.get_missing_data_summary()
-        
-        # Display missing data information
-        missing_text = f"Missing Data Found:\n\n"
-        missing_text += f"• Stock Prices: {missing_summary['by_type'].get('prices', 0)}\n"
-        missing_text += f"• Exchange Rates: {missing_summary['by_type'].get('exchange_rates', 0)}\n"
-        missing_text += f"• Sectors: {missing_summary['by_type'].get('sectors', 0)}\n"
-        missing_text += f"• Weights: {missing_summary['by_type'].get('weights', 0)}\n\n"
-        missing_text += f"Total missing items: {missing_summary['total_missing']}"
-        
-        missing_label = ttk.Label(
+
+        # Display summary
+        summary_text = f"Missing Data Summary: {missing_summary['total_missing']} total items\n\n"
+        summary_text += f"• Stock Prices: {missing_summary['by_type'].get('prices', 0)}\n"
+        summary_text += f"• Exchange Rates: {missing_summary['by_type'].get('exchange_rates', 0)}\n"
+        summary_text += f"• Sectors: {missing_summary['by_type'].get('sectors', 0)}\n"
+        summary_text += f"• Weights: {missing_summary['by_type'].get('weights', 0)}"
+
+        summary_label = ttk.Label(
             content,
-            text=missing_text,
+            text=summary_text,
             font=GUI_FONT,
             justify=tk.LEFT
         )
-        missing_label.grid(row=0, column=0, pady=(0, 20), sticky=tk.W)
-        
+        summary_label.grid(row=0, column=0, pady=(0, 10), sticky=tk.W)
+
+        # Display detailed missing data in expandable sections
+        current_row = 1
+        if missing_summary['total_missing'] > 0:
+            details_frame = ttk.LabelFrame(content, text="Detailed Missing Data", padding="10")
+            details_frame.grid(row=current_row, column=0, sticky=(tk.W, tk.E), pady=(0, 20))
+            details_frame.columnconfigure(0, weight=1)
+
+            self._add_missing_data_details(details_frame)
+            current_row += 1
+
         # Resolution options
         options_frame = ttk.LabelFrame(content, text="Resolution Options", padding="10")
-        options_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 20))
+        options_frame.grid(row=current_row, column=0, sticky=(tk.W, tk.E), pady=(0, 20))
         options_frame.columnconfigure(0, weight=1)
         
         self.resolution_var = tk.StringVar(value="auto")
@@ -326,16 +335,102 @@ class PortfolioFactsheetApp:
         ).grid(row=2, column=0, sticky=tk.W)
         
         # Resolve button
+        current_row += 1
         self.resolve_button = ttk.Button(
             content,
             text="Resolve Missing Data",
             command=self._resolve_missing_data
         )
-        self.resolve_button.grid(row=2, column=0, pady=(20, 10))
+        self.resolve_button.grid(row=current_row, column=0, pady=(20, 10))
         
         # Enable back button
         self.back_button.config(state=tk.NORMAL)
-    
+
+    def _add_missing_data_details(self, parent_frame):
+        """Add detailed missing data information to the frame."""
+        missing_data = self.portfolio_data.missing_data
+
+        # Create a scrollable text widget for details
+        details_text = tk.Text(parent_frame, height=15, width=80, font=("Courier", 9), wrap=tk.WORD)
+        details_scrollbar = ttk.Scrollbar(parent_frame, orient="vertical", command=details_text.yview)
+        details_text.configure(yscrollcommand=details_scrollbar.set)
+
+        details_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        details_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        parent_frame.columnconfigure(0, weight=1)
+        parent_frame.rowconfigure(0, weight=1)
+
+        # Add header
+        details_text.insert(tk.END, "Missing Data Details\n", "header")
+        details_text.insert(tk.END, "=" * 100 + "\n\n", "separator")
+
+        # Missing prices
+        if missing_data.get("prices"):
+            details_text.insert(tk.END, f"Missing Stock Prices ({len(missing_data['prices'])} items):\n", "section_header")
+            details_text.insert(tk.END, "-" * 100 + "\n", "separator")
+            details_text.insert(tk.END, f"{'Ticker':<20} {'Name':<30} {'Date':<15} {'Reason'}\n", "column_header")
+            details_text.insert(tk.END, "-" * 100 + "\n", "separator")
+
+            for item in missing_data["prices"]:
+                ticker = item.get('ticker', 'N/A')
+                name = item.get('name', 'N/A')[:28]  # Truncate long names
+                date = str(item.get('date', 'N/A'))[:10]
+                reason = "Price missing or ≤ 0"
+                details_text.insert(tk.END, f"{ticker:<20} {name:<30} {date:<15} {reason}\n")
+            details_text.insert(tk.END, "\n")
+
+        # Missing exchange rates
+        if missing_data.get("exchange_rates"):
+            details_text.insert(tk.END, f"Missing Exchange Rates ({len(missing_data['exchange_rates'])} items):\n", "section_header")
+            details_text.insert(tk.END, "-" * 100 + "\n", "separator")
+            details_text.insert(tk.END, f"{'Currency':<20} {'Date':<15} {'Reason'}\n", "column_header")
+            details_text.insert(tk.END, "-" * 100 + "\n", "separator")
+
+            for item in missing_data["exchange_rates"]:
+                currency = item.get('currency', 'N/A')
+                date = str(item.get('date', 'N/A'))[:10]
+                reason = f"Exchange rate for {currency}→KRW missing or ≤ 0"
+                details_text.insert(tk.END, f"{currency:<20} {date:<15} {reason}\n")
+            details_text.insert(tk.END, "\n")
+
+        # Missing sectors
+        if missing_data.get("sectors"):
+            details_text.insert(tk.END, f"Missing Sectors ({len(missing_data['sectors'])} items):\n", "section_header")
+            details_text.insert(tk.END, "-" * 100 + "\n", "separator")
+            details_text.insert(tk.END, f"{'Ticker':<20} {'Name':<30} {'Date':<15} {'Reason'}\n", "column_header")
+            details_text.insert(tk.END, "-" * 100 + "\n", "separator")
+
+            for item in missing_data["sectors"]:
+                ticker = item.get('ticker', 'N/A')
+                name = item.get('name', 'N/A')[:28]
+                date = str(item.get('date', 'N/A'))[:10]
+                reason = "Sector classification missing or invalid"
+                details_text.insert(tk.END, f"{ticker:<20} {name:<30} {date:<15} {reason}\n")
+            details_text.insert(tk.END, "\n")
+
+        # Missing weights
+        if missing_data.get("weights"):
+            details_text.insert(tk.END, f"Missing Weights ({len(missing_data['weights'])} items):\n", "section_header")
+            details_text.insert(tk.END, "-" * 100 + "\n", "separator")
+            details_text.insert(tk.END, f"{'Ticker':<20} {'Date':<15} {'Reason'}\n", "column_header")
+            details_text.insert(tk.END, "-" * 100 + "\n", "separator")
+
+            for item in missing_data["weights"]:
+                ticker = item.get('ticker', 'N/A')
+                date = str(item.get('date', 'N/A'))[:10]
+                reason = "Portfolio weight % missing (will be calculated)"
+                details_text.insert(tk.END, f"{ticker:<20} {date:<15} {reason}\n")
+            details_text.insert(tk.END, "\n")
+
+        # Configure text styles
+        details_text.tag_config("header", font=("Courier", 10, "bold"))
+        details_text.tag_config("section_header", font=("Courier", 9, "bold"), foreground="blue")
+        details_text.tag_config("column_header", font=("Courier", 9, "bold"), foreground="darkgreen")
+        details_text.tag_config("separator", foreground="gray")
+
+        # Make text widget read-only
+        details_text.config(state=tk.DISABLED)
+
     def _show_step_3(self):
         """Show step 3: Generate report."""
         self._clear_content_frame()
@@ -448,13 +543,21 @@ class PortfolioFactsheetApp:
             variable=self.include_charts_var
         ).grid(row=2, column=0, sticky=tk.W, pady=(0, 5))
         
+        # Generate PDF option
+        self.generate_pdf_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            options_frame,
+            text="Generate PDF report (in addition to HTML)",
+            variable=self.generate_pdf_var
+        ).grid(row=3, column=0, sticky=tk.W, pady=(0, 5))
+
         # Open after generation
         self.open_after_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(
             options_frame,
             text="Open report after generation",
             variable=self.open_after_var
-        ).grid(row=3, column=0, sticky=tk.W)
+        ).grid(row=4, column=0, sticky=tk.W)
         
         # Generate button - place in a prominent location with padding
         button_frame = ttk.Frame(content)
@@ -864,13 +967,31 @@ class PortfolioFactsheetApp:
                 )
                 
                 if report_path and os.path.exists(report_path):
-                    logging.info(f"Report generated: {report_path}")
-                    
+                    logging.info(f"HTML report generated: {report_path}")
+
+                    # Generate PDF if requested
+                    pdf_path = None
+                    if self.generate_pdf_var.get():
+                        try:
+                            logging.info("Generating PDF report...")
+                            pdf_path = self.report_generator.generate_pdf_from_html(report_path)
+                            if pdf_path and os.path.exists(pdf_path):
+                                logging.info(f"PDF report generated: {pdf_path}")
+                            else:
+                                logging.warning("PDF generation failed")
+                        except Exception as pdf_error:
+                            logging.error(f"PDF generation error: {pdf_error}")
+                            self.message_queue.put(f"WARNING:PDF generation failed: {str(pdf_error)}")
+
                     # Open report if requested
                     if self.open_after_var.get():
                         import webbrowser
-                        webbrowser.open(f"file://{report_path}")
-                    
+                        # Open PDF if generated, otherwise HTML
+                        if pdf_path and os.path.exists(pdf_path):
+                            webbrowser.open(f"file://{pdf_path}")
+                        else:
+                            webbrowser.open(f"file://{report_path}")
+
                     self.message_queue.put("REPORT_COMPLETE")
                 else:
                     self.message_queue.put("ERROR:Failed to generate report")
