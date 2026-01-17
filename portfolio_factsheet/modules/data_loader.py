@@ -134,8 +134,10 @@ class PortfolioData:
             '종목명': 'name',
             '수량': 'quantity',
             '현재가': 'price',
+            '비중(%)': 'weight_pct',
             '통화': 'currency',
             '섹터': 'sector',
+            '국가': 'country',
             '환율': 'exchange_rate'
         }
         
@@ -156,6 +158,9 @@ class PortfolioData:
         
         # Calculate value in KRW
         df['value_krw'] = df['value_local'] * df['exchange_rate']
+        
+        # Create year_month column for portfolio calculations
+        df['year_month'] = df['date'].dt.to_period('M')
         
         # Extract unique dates
         self.monthly_dates = sorted(df['date'].dt.strftime('%Y-%m').unique())
@@ -298,9 +303,17 @@ class PortfolioData:
         if self.processed_data is None:
             logger.error("No processed data available")
             return
-            
+
         df = self.processed_data
-        
+
+        # Clear existing missing data to avoid duplicates
+        self.missing_data = {
+            "prices": [],
+            "exchange_rates": [],
+            "sectors": [],
+            "weights": []
+        }
+
         # Identify missing prices
         if 'price' in df.columns:
             missing_prices = df[pd.isna(df['price']) | (df['price'] <= 0)]
@@ -416,6 +429,53 @@ class PortfolioData:
                    f"{self.portfolio_summary['unique_dates']} dates, "
                    f"{self.portfolio_summary['total_value_krw']:,.0f} KRW total value")
     
+    def get_portfolio_summary(self) -> Dict[str, Any]:
+        """Get portfolio summary for GUI display."""
+        if self.processed_data is None:
+            return {
+                "date_range": {"start": "N/A", "end": "N/A"},
+                "total_months": 0,
+                "unique_stocks": 0,
+                "countries": [],
+                "currencies_used": []
+            }
+
+        df = self.processed_data
+
+        # Get date range
+        if 'date' in df.columns and not df['date'].empty:
+            dates = pd.to_datetime(df['date'])
+            start_date = dates.min().strftime('%Y-%m-%d')
+            end_date = dates.max().strftime('%Y-%m-%d')
+
+            # Calculate number of unique months (without modifying dataframe)
+            total_months = dates.dt.to_period('M').nunique()
+        else:
+            start_date = "N/A"
+            end_date = "N/A"
+            total_months = 0
+
+        # Get unique stocks
+        unique_stocks = df['ticker'].nunique() if 'ticker' in df.columns else 0
+
+        # Get countries
+        countries = []
+        if 'country' in df.columns:
+            countries = df['country'].dropna().unique().tolist()
+
+        # Get currencies
+        currencies = []
+        if 'currency' in df.columns:
+            currencies = df['currency'].dropna().unique().tolist()
+
+        return {
+            "date_range": {"start": start_date, "end": end_date},
+            "total_months": total_months,
+            "unique_stocks": unique_stocks,
+            "countries": countries,
+            "currencies_used": currencies
+        }
+
     def get_data_quality_report(self) -> Dict[str, Any]:
         """Generate a comprehensive data quality report."""
         return {
@@ -423,6 +483,25 @@ class PortfolioData:
             "issues": self.data_quality_issues,
             "missing_data": self.missing_data,
             "recommendations": self._generate_data_quality_recommendations()
+        }
+    
+    def get_missing_data_summary(self) -> Dict[str, Any]:
+        """Get summary of missing data for display in GUI."""
+        total_missing = (
+            len(self.missing_data["prices"]) +
+            len(self.missing_data["exchange_rates"]) +
+            len(self.missing_data["sectors"]) +
+            len(self.missing_data["weights"])
+        )
+        
+        return {
+            "total_missing": total_missing,
+            "by_type": {
+                "prices": len(self.missing_data["prices"]),
+                "exchange_rates": len(self.missing_data["exchange_rates"]),
+                "sectors": len(self.missing_data["sectors"]),
+                "weights": len(self.missing_data["weights"])
+            }
         }
     
     def _generate_data_quality_recommendations(self) -> List[str]:
@@ -489,6 +568,170 @@ class PortfolioData:
         except Exception as e:
             logger.error(f"Error saving updated data: {e}")
             return False
+    
+    def save_to_original_format(self, filepath: str) -> bool:
+        """Save data back to original CSV format with Korean column names."""
+        try:
+            if self.processed_data is None:
+                logger.error("No processed data available to save")
+                return False
+            
+            # Create a copy for saving
+            save_df = self.processed_data.copy()
+            
+            # Reverse column mapping (English -> Korean)
+            column_mapping = {
+                'date': '기준일',
+                'ticker': '종목코드',
+                'name': '종목명',
+                'quantity': '수량',
+                'price': '현재가',
+                'weight_pct': '비중(%)',
+                'sector': '섹터',
+                'country': '국가',
+                'currency': '통화',
+                'exchange_rate': '환율'
+            }
+            
+            # Rename columns that exist
+            for english, korean in column_mapping.items():
+                if english in save_df.columns:
+                    save_df.rename(columns={english: korean}, inplace=True)
+            
+            # Remove calculated columns that shouldn't be in original format
+            columns_to_remove = ['value_local', 'value_krw', 'year_month']
+            for col in columns_to_remove:
+                if col in save_df.columns:
+                    save_df.drop(columns=[col], inplace=True)
+            
+            # Convert date to string format
+            if '기준일' in save_df.columns:
+                save_df['기준일'] = save_df['기준일'].dt.strftime('%Y-%m-%d')
+            
+            # Determine file format by extension
+            if filepath.lower().endswith('.xlsx'):
+                # Save as Excel
+                save_df.to_excel(filepath, index=False)
+                logger.info(f"Saved data to Excel file: {filepath}")
+            else:
+                # Save as CSV (default)
+                save_df.to_csv(filepath, index=False, encoding='utf-8-sig')
+                logger.info(f"Saved data to CSV file: {filepath}")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error saving to original format: {e}")
+            return False
+    
+    def update_missing_data(self, data_type: str, updates: List[Dict[str, Any]]) -> bool:
+        """Update missing data with fetched or manually entered values."""
+        try:
+            if self.processed_data is None:
+                logger.error("No processed data available")
+                return False
+            
+            df = self.processed_data
+            
+            for update in updates:
+                if data_type == "prices":
+                    # Update price in processed data
+                    mask = (
+                        (df['ticker'] == update['ticker']) &
+                        (df['date'] == update['date'])
+                    )
+                    if mask.any():
+                        df.loc[mask, 'price'] = update['value']
+                        # Recalculate value_krw if price was updated
+                        if 'value_krw' in df.columns:
+                            df.loc[mask, 'value_krw'] = (
+                                df.loc[mask, 'quantity'] *
+                                df.loc[mask, 'price'] *
+                                df.loc[mask, 'exchange_rate']
+                            )
+                
+                elif data_type == "exchange_rates":
+                    # Update exchange rate in processed data
+                    mask = (
+                        (df['currency'] == update['currency']) &
+                        (df['date'] == update['date'])
+                    )
+                    if mask.any():
+                        df.loc[mask, 'exchange_rate'] = update['value']
+                        # Recalculate value_krw if exchange rate was updated
+                        if 'value_krw' in df.columns:
+                            df.loc[mask, 'value_krw'] = (
+                                df.loc[mask, 'quantity'] *
+                                df.loc[mask, 'price'] *
+                                df.loc[mask, 'exchange_rate']
+                            )
+                
+                elif data_type == "sectors":
+                    # Update sector in processed data
+                    mask = (
+                        (df['ticker'] == update['ticker']) &
+                        (df['date'] == update['date'])
+                    )
+                    if mask.any():
+                        df.loc[mask, 'sector'] = update['value']
+                
+                elif data_type == "weights":
+                    # Update weight in processed data
+                    mask = (
+                        (df['ticker'] == update['ticker']) &
+                        (df['date'] == update['date'])
+                    )
+                    if mask.any():
+                        df.loc[mask, 'weight_pct'] = update['value']
+            
+            # Re-identify missing data after updates
+            self._identify_missing_data()
+            
+            logger.info(f"Updated {len(updates)} {data_type} entries")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error updating missing data: {e}")
+            return False
+    
+    def calculate_missing_weights(self) -> bool:
+        """Calculate missing weights based on portfolio values."""
+        try:
+            if self.processed_data is None:
+                logger.error("No processed data available")
+                return False
+            
+            df = self.processed_data
+            
+            # Calculate total portfolio value per date
+            if 'value_krw' in df.columns:
+                # Group by date and calculate total value
+                date_totals = df.groupby('date')['value_krw'].transform('sum')
+                
+                # Calculate weight percentage
+                df['weight_pct'] = (df['value_krw'] / date_totals) * 100
+                
+                # Re-identify missing data
+                self._identify_missing_data()
+                
+                logger.info("Calculated missing weights")
+                return True
+            else:
+                logger.error("Cannot calculate weights: value_krw column missing")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Error calculating missing weights: {e}")
+            return False
+    
+    def get_data_for_calculation(self) -> pd.DataFrame:
+        """Get processed data ready for portfolio calculations."""
+        if self.processed_data is None:
+            logger.error("No processed data available")
+            return pd.DataFrame()
+        
+        # Return a copy of the processed data
+        return self.processed_data.copy()
 
 
 def test_data_loader():

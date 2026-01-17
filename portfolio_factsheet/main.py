@@ -21,7 +21,7 @@ from config import (
     GUI_WIDTH, GUI_HEIGHT, GUI_TITLE, GUI_FONT, GUI_BG_COLOR,
     PROJECT_ROOT, REPORTS_DIR
 )
-from modules.data_loader import PortfolioData, load_portfolio_data
+from modules.data_loader import PortfolioData
 from modules.data_fetcher import DataFetcher
 from modules.sector_mapper import SectorMapper
 from modules.portfolio_calc import PortfolioCalculator
@@ -366,43 +366,63 @@ class PortfolioFactsheetApp:
         content.columnconfigure(0, weight=1)
         
         # Portfolio summary
-        if self.portfolio_data:
-            summary = self.portfolio_data.get_portfolio_summary()
-            
-            summary_text = f"Portfolio Summary:\n\n"
-            summary_text += f"• Period: {summary['date_range']['start']} to {summary['date_range']['end']}\n"
-            summary_text += f"• Months: {summary['total_months']}\n"
-            summary_text += f"• Unique Stocks: {summary['unique_stocks']}\n"
-            
-            # Safely handle countries list
-            countries = summary.get('countries', [])
-            country_list = []
-            if countries:
-                for c in countries:
-                    # Check if value is valid (not None and not NaN)
-                    if c is not None:
-                        # Check for NaN (float NaN is not equal to itself)
-                        if isinstance(c, float) and c != c:  # NaN check
-                            continue
-                        country_list.append(str(c))
-            summary_text += f"• Countries: {', '.join(country_list) if country_list else 'N/A'}\n"
-            
-            # Safely handle currencies list
-            currencies = summary.get('currencies_used', [])
-            currency_list = []
-            if currencies:
-                for c in currencies:
-                    # Check if value is valid (not None and not NaN)
-                    if c is not None:
-                        # Check for NaN (float NaN is not equal to itself)
-                        if isinstance(c, float) and c != c:  # NaN check
-                            continue
-                        currency_list.append(str(c))
-            summary_text += f"• Currencies: {', '.join(currency_list) if currency_list else 'N/A'}"
-            
+        try:
+            if self.portfolio_data:
+                summary = self.portfolio_data.get_portfolio_summary()
+
+                summary_text = f"Portfolio Summary:\n\n"
+                summary_text += f"• Period: {summary['date_range']['start']} to {summary['date_range']['end']}\n"
+                summary_text += f"• Months: {summary['total_months']}\n"
+                summary_text += f"• Unique Stocks: {summary['unique_stocks']}\n"
+
+                # Safely handle countries list
+                countries = summary.get('countries', [])
+                country_list = []
+                if countries:
+                    for c in countries:
+                        # Check if value is valid (not None and not NaN)
+                        if c is not None:
+                            # Check for NaN (float NaN is not equal to itself)
+                            if isinstance(c, float) and c != c:  # NaN check
+                                continue
+                            country_list.append(str(c))
+                summary_text += f"• Countries: {', '.join(country_list) if country_list else 'N/A'}\n"
+
+                # Safely handle currencies list
+                currencies = summary.get('currencies_used', [])
+                currency_list = []
+                if currencies:
+                    for c in currencies:
+                        # Check if value is valid (not None and not NaN)
+                        if c is not None:
+                            # Check for NaN (float NaN is not equal to itself)
+                            if isinstance(c, float) and c != c:  # NaN check
+                                continue
+                            currency_list.append(str(c))
+                summary_text += f"• Currencies: {', '.join(currency_list) if currency_list else 'N/A'}"
+
+                summary_label = ttk.Label(
+                    content,
+                    text=summary_text,
+                    font=GUI_FONT,
+                    justify=tk.LEFT
+                )
+                summary_label.grid(row=0, column=0, pady=(0, 20), sticky=tk.W)
+            else:
+                summary_label = ttk.Label(
+                    content,
+                    text="No portfolio data loaded",
+                    font=GUI_FONT,
+                    justify=tk.LEFT
+                )
+                summary_label.grid(row=0, column=0, pady=(0, 20), sticky=tk.W)
+        except Exception as e:
+            logging.error(f"Error displaying portfolio summary: {e}")
+            import traceback
+            traceback.print_exc()
             summary_label = ttk.Label(
                 content,
-                text=summary_text,
+                text=f"Error loading portfolio summary: {str(e)}",
                 font=GUI_FONT,
                 justify=tk.LEFT
             )
@@ -436,14 +456,23 @@ class PortfolioFactsheetApp:
             variable=self.open_after_var
         ).grid(row=3, column=0, sticky=tk.W)
         
-        # Generate button
+        # Generate button - place in a prominent location with padding
+        button_frame = ttk.Frame(content)
+        button_frame.grid(row=2, column=0, pady=(20, 40), sticky=(tk.W, tk.E))
+        button_frame.columnconfigure(0, weight=1)
+
         self.generate_button = ttk.Button(
-            content,
+            button_frame,
             text="Generate Report",
-            command=self._generate_report
+            command=self._generate_report,
+            width=20
         )
-        self.generate_button.grid(row=2, column=0, pady=(10, 0))
-        
+        self.generate_button.pack(pady=10)
+
+        # Force canvas to update scroll region after all widgets are added
+        scrollable_frame.update_idletasks()
+        canvas.configure(scrollregion=canvas.bbox("all"))
+
         # Enable back button, disable next button
         self.back_button.config(state=tk.NORMAL)
         self.next_button.config(state=tk.DISABLED)
@@ -501,10 +530,12 @@ class PortfolioFactsheetApp:
         def load_thread():
             try:
                 logging.info(f"Loading portfolio data from: {filepath}")
-                portfolio, error = load_portfolio_data(filepath)
+                portfolio = PortfolioData()
+                success = portfolio.load_csv(filepath)
                 
-                if error:
-                    self.message_queue.put(f"ERROR:{error}")
+                if not success:
+                    error_msg = "Failed to load portfolio data. Check data format and quality issues."
+                    self.message_queue.put(f"ERROR:{error_msg}")
                 else:
                     self.portfolio_data = portfolio
                     self.message_queue.put("LOAD_COMPLETE")
@@ -520,11 +551,11 @@ class PortfolioFactsheetApp:
         
         if self.portfolio_data:
             # Show portfolio summary
-            summary = self.portfolio_data.get_portfolio_summary()
-            missing = self.portfolio_data.get_missing_data_summary()
+            summary = self.portfolio_data.portfolio_summary
+            missing = self.portfolio_data.missing_data
             
-            logging.info(f"Portfolio loaded: {summary['total_months']} months, {summary['unique_stocks']} stocks")
-            logging.info(f"Missing data: {missing['total_missing']} items")
+            logging.info(f"Portfolio loaded: {summary['total_rows']} rows, {summary['unique_tickers']} stocks")
+            logging.info(f"Missing data: {len(missing['prices'])} prices, {len(missing['sectors'])} sectors")
             
             # Enable next button
             self.next_button.config(state=tk.NORMAL)
@@ -639,11 +670,22 @@ class PortfolioFactsheetApp:
                 failed_count += 1
                 logging.warning(f"Failed to fetch sector for {ticker}")
         
-        # Apply updates to portfolio data
+        # Apply updates to portfolio data (batch by type for efficiency)
         if updates:
+            # Group updates by type
+            updates_by_type = {}
             for update in updates:
-                self.portfolio_data.update_missing_data(update["type"], [update])
-            logging.info(f"Applied {len(updates)} updates to portfolio data")
+                update_type = update["type"]
+                if update_type not in updates_by_type:
+                    updates_by_type[update_type] = []
+                updates_by_type[update_type].append(update)
+
+            # Apply each type in batch
+            for update_type, type_updates in updates_by_type.items():
+                self.portfolio_data.update_missing_data(update_type, type_updates)
+                logging.info(f"Applied {len(type_updates)} {update_type} updates")
+
+            logging.info(f"Total updates applied: {len(updates)}")
         
         # Save cache
         self.data_fetcher.save_caches()
@@ -693,10 +735,20 @@ class PortfolioFactsheetApp:
                     })
                     logging.info(f"Estimated rate for {item['currency']}: {estimated_rate}")
         
-        # Apply updates
-        for update in updates:
-            self.portfolio_data.update_missing_data(update["type"], [update])
-        
+        # Apply updates (batch by type for efficiency)
+        if updates:
+            # Group updates by type
+            updates_by_type = {}
+            for update in updates:
+                update_type = update["type"]
+                if update_type not in updates_by_type:
+                    updates_by_type[update_type] = []
+                updates_by_type[update_type].append(update)
+
+            # Apply each type in batch
+            for update_type, type_updates in updates_by_type.items():
+                self.portfolio_data.update_missing_data(update_type, type_updates)
+
         logging.info(f"Estimation completed: {len(updates)} items estimated")
         self.message_queue.put("FETCH_COMPLETE")
     
@@ -730,17 +782,35 @@ class PortfolioFactsheetApp:
             self._save_updated_data()
     
     def _save_updated_data(self):
-        """Save updated portfolio data to a new CSV file."""
+        """Save updated portfolio data to a new file (CSV or Excel)."""
         try:
             from config import UPDATED_DATA_DIR
             from datetime import datetime
+            
+            # Ask user for file format
+            import tkinter.simpledialog as simpledialog
+            format_choice = simpledialog.askstring(
+                "Save Format",
+                "Choose file format:\n1. CSV (comma-separated values)\n2. Excel (.xlsx)\n\nEnter 1 or 2:",
+                initialvalue="1"
+            )
+            
+            if not format_choice:
+                return  # User cancelled
             
             # Generate filename with timestamp
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             original_filename = os.path.basename(self.file_path_var.get())
             filename_base = os.path.splitext(original_filename)[0]
-            new_filename = f"{filename_base}_updated_{timestamp}.csv"
-            save_path = os.path.join(UPDATED_DATA_DIR, new_filename)
+            
+            if format_choice.strip() == "2":
+                # Excel format
+                new_filename = f"{filename_base}_updated_{timestamp}.xlsx"
+                save_path = os.path.join(UPDATED_DATA_DIR, new_filename)
+            else:
+                # CSV format (default)
+                new_filename = f"{filename_base}_updated_{timestamp}.csv"
+                save_path = os.path.join(UPDATED_DATA_DIR, new_filename)
             
             # Save data in original format
             success = self.portfolio_data.save_to_original_format(save_path)
@@ -1142,10 +1212,20 @@ class PortfolioFactsheetApp:
                                        f"Invalid weight for {widget_info['item']['ticker']}: {value}")
                     return
         
-        # Apply updates to portfolio data
-        for update in updates:
-            self.portfolio_data.update_missing_data(update["type"], [update])
-        
+        # Apply updates to portfolio data (batch by type for efficiency)
+        if updates:
+            # Group updates by type
+            updates_by_type = {}
+            for update in updates:
+                update_type = update["type"]
+                if update_type not in updates_by_type:
+                    updates_by_type[update_type] = []
+                updates_by_type[update_type].append(update)
+
+            # Apply each type in batch
+            for update_type, type_updates in updates_by_type.items():
+                self.portfolio_data.update_missing_data(update_type, type_updates)
+
         # Save cache for any fetched data
         if self.data_fetcher:
             self.data_fetcher.save_caches()

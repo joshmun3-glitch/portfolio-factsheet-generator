@@ -53,8 +53,12 @@ cache/
 *.pdf
 *.html
 portfolio_factsheet/modules/data_loader_old.py
-portfolio_factsheet/test_*.py
 portfolio_factsheet/tests/__pycache__/
+test_app_functionality.py
+
+# Claude Code
+.claude/
+tmpclaude-*
 
 # Logs
 *.log
