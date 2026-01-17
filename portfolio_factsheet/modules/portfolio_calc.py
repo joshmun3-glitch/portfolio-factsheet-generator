@@ -165,8 +165,8 @@ class PortfolioCalculator:
         
         # Calculate annualized returns
         num_months = len(monthly_returns)
-        if num_months >= 12:
-            # Annualized return (geometric)
+        if num_months >= 2:
+            # Annualized return (geometric) - requires at least 2 months for meaningful calculation
             total_return = cumulative_returns[-1] if cumulative_returns else 0
             annualized_return = (1 + total_return) ** (12 / num_months) - 1
         else:
@@ -177,7 +177,8 @@ class PortfolioCalculator:
             'cumulative_pct': [r * 100 for r in cumulative_returns],
             'dates': self.results['monthly_returns']['dates'],
             'total_return': cumulative_returns[-1] * 100 if cumulative_returns else 0,
-            'annualized_return': annualized_return * 100 if annualized_return else None
+            'annualized_return': annualized_return * 100 if annualized_return else None,
+            'num_months': num_months  # Track number of months for report context
         }
     
     def _calculate_risk_metrics(self):

@@ -141,10 +141,16 @@ class ReportGenerator:
         # Cumulative returns
         if "cumulative_returns" in calculation_results:
             cumulative = calculation_results["cumulative_returns"]
+            num_months = cumulative.get("num_months", 0)
+            annualized_note = ""
+            if num_months > 0 and num_months < 12:
+                annualized_note = f" (based on {num_months} months)"
+
             report_data["cumulative_returns"] = {
                 "total_return": self._format_percentage(cumulative["total_return"]),
-                "annualized_return": self._format_percentage(cumulative.get("annualized_return", 0)) 
-                    if cumulative.get("annualized_return") else "N/A"
+                "annualized_return": self._format_percentage(cumulative.get("annualized_return", 0))
+                    if cumulative.get("annualized_return") else "N/A",
+                "annualized_note": annualized_note
             }
         
         # Risk metrics
@@ -651,7 +657,7 @@ class ReportGenerator:
                 <div class="metric-value {'metric-positive' if 'cumulative_returns' in template_data and template_data['cumulative_returns']['annualized_return'] != 'N/A' and float(template_data['cumulative_returns']['annualized_return'].replace('%', '').replace(',', '')) >= 0 else 'metric-negative'}">
                     {template_data.get('cumulative_returns', {}).get('annualized_return', 'N/A')}
                 </div>
-                <p>Annualized performance</p>
+                <p>Annualized performance{template_data.get('cumulative_returns', {}).get('annualized_note', '')}</p>
             </div>
             
             <div class="metric-card">
