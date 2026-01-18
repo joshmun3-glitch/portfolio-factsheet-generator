@@ -89,7 +89,7 @@ class ReportGenerator:
 
     def generate_pdf_from_html(self, html_path: str) -> Optional[str]:
         """
-        Generate PDF report from HTML file using weasyprint.
+        Generate PDF report from HTML file using multiple methods.
 
         Args:
             html_path: Path to the HTML report file
@@ -97,36 +97,105 @@ class ReportGenerator:
         Returns:
             Path to generated PDF report or None if failed
         """
+        # Generate PDF filename (same name as HTML but with .pdf extension)
+        pdf_filename = os.path.basename(html_path).replace('.html', '.pdf')
+        pdf_path = os.path.join(self.reports_dir, pdf_filename)
+
+        # Try multiple methods in order of preference
+        methods = [
+            ("pdfkit", self._generate_pdf_pdfkit),
+            ("weasyprint", self._generate_pdf_weasyprint),
+            ("pypdf", self._generate_pdf_pypdf),
+        ]
+
+        for method_name, method_func in methods:
+            try:
+                logger.info(f"Attempting PDF generation using {method_name}...")
+                result = method_func(html_path, pdf_path)
+
+                if result and os.path.exists(result):
+                    # Verify PDF has reasonable size (> 10KB)
+                    pdf_size = os.path.getsize(result)
+                    if pdf_size > 10000:
+                        logger.info(f"PDF generated successfully using {method_name}: {result} ({pdf_size} bytes)")
+                        return result
+                    else:
+                        logger.warning(f"PDF generated but too small ({pdf_size} bytes), trying next method")
+                        if os.path.exists(result):
+                            os.remove(result)
+            except Exception as e:
+                logger.warning(f"{method_name} failed: {e}")
+                continue
+
+        logger.error("All PDF generation methods failed")
+        return None
+
+    def _generate_pdf_pdfkit(self, html_path: str, pdf_path: str) -> Optional[str]:
+        """Generate PDF using pdfkit/wkhtmltopdf."""
         try:
-            # Try importing weasyprint
-            try:
-                from weasyprint import HTML
-                logger.info("Using weasyprint for PDF generation")
-            except ImportError:
-                logger.warning("weasyprint not available, trying alternative method")
-                return self._generate_pdf_alternative(html_path)
+            import pdfkit
 
-            # Generate PDF filename (same name as HTML but with .pdf extension)
-            pdf_filename = os.path.basename(html_path).replace('.html', '.pdf')
-            pdf_path = os.path.join(self.reports_dir, pdf_filename)
+            options = {
+                'enable-local-file-access': None,
+                'encoding': 'UTF-8',
+                'no-outline': None,
+                'print-media-type': None,
+            }
 
-            logger.info(f"Generating PDF from HTML: {html_path}")
-
-            # Convert HTML to PDF
-            HTML(filename=html_path).write_pdf(pdf_path)
-
-            logger.info(f"PDF report generated: {pdf_path}")
+            pdfkit.from_file(html_path, pdf_path, options=options)
             return pdf_path
-
+        except ImportError:
+            raise Exception("pdfkit not installed")
         except Exception as e:
-            logger.error(f"Error generating PDF: {e}")
-            # Try alternative method as fallback
-            try:
-                logger.info("Attempting alternative PDF generation method...")
-                return self._generate_pdf_alternative(html_path)
-            except Exception as alt_error:
-                logger.error(f"Alternative PDF generation also failed: {alt_error}")
-                return None
+            raise Exception(f"pdfkit error: {e}")
+
+    def _generate_pdf_weasyprint(self, html_path: str, pdf_path: str) -> Optional[str]:
+        """Generate PDF using weasyprint."""
+        from weasyprint import HTML, CSS
+        from weasyprint.text.fonts import FontConfiguration
+
+        # Configure font handling
+        font_config = FontConfiguration()
+
+        # Read HTML content
+        with open(html_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        # Convert to PDF with proper base URL
+        base_url = f"file:///{os.path.dirname(os.path.abspath(html_path)).replace(chr(92), '/')}/"
+
+        HTML(string=html_content, base_url=base_url).write_pdf(
+            pdf_path,
+            font_config=font_config
+        )
+
+        return pdf_path
+
+    def _generate_pdf_pypdf(self, html_path: str, pdf_path: str) -> Optional[str]:
+        """Generate PDF using pure Python approach (xhtml2pdf)."""
+        try:
+            from xhtml2pdf import pisa
+
+            # Read HTML
+            with open(html_path, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+
+            # Generate PDF
+            with open(pdf_path, 'wb') as pdf_file:
+                pisa_status = pisa.CreatePDF(
+                    html_content,
+                    dest=pdf_file,
+                    encoding='utf-8'
+                )
+
+            if pisa_status.err:
+                raise Exception(f"xhtml2pdf conversion failed with {pisa_status.err} errors")
+
+            return pdf_path
+        except ImportError:
+            raise Exception("xhtml2pdf not installed")
+        except Exception as e:
+            raise Exception(f"xhtml2pdf error: {e}")
 
     def _prepare_template_data(self, portfolio_data: pd.DataFrame,
                               calculation_results: Dict[str, Any],
